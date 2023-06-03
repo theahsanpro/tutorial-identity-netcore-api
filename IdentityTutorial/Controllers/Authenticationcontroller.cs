@@ -2,6 +2,8 @@
 using IdentityTutorial.Models.Authentication.Signup;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using User.Management.Service.Models;
+using User.Management.Service.Services;
 
 namespace IdentityTutorial.Controllers
 {
@@ -11,13 +13,15 @@ namespace IdentityTutorial.Controllers
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
-        private readonly IConfiguration _configuration;
+        private readonly IEmailService _emailService;
 
-        public Authenticationcontroller(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration)
+        public Authenticationcontroller(UserManager<IdentityUser> userManager, 
+            RoleManager<IdentityRole> roleManager, 
+            IEmailService emailService)
         {
             this._userManager = userManager;
             this._roleManager = roleManager;
-            this._configuration = configuration;
+            _emailService = emailService;
         }
 
         [HttpPost]
@@ -50,7 +54,14 @@ namespace IdentityTutorial.Controllers
                         new Response { Status = "Error", Message = "User Creation Failed" });
                 }
 
+                // Add Role to the user
                 await _userManager.AddToRoleAsync(user,role);
+
+                // Sending Confirmation Email to the user
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                var confirmationLink = Url.Action(nameof(ConfirmEmail), "Authentication", new {token, email = user.Email });
+                var message = new Message(new string[] { user.Email! }, "Confirmation email Link", confirmationLink!);
+                _emailService.SendEmail(message);
 
                 return StatusCode(StatusCodes.Status201Created,
                         new Response { Status = "success", Message = "User Creation Successfully" });
@@ -60,11 +71,23 @@ namespace IdentityTutorial.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError,
                         new Response { Status = "Error", Message = "This role Does not exist" });
             }
+        }
 
-            
+        [HttpGet("ConfirmEmail")]
+        public async Task<IActionResult> ConfirmEmail(string token, string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
 
-            // Assign a role
+            if(user != null)
+            {
+                var result = await _userManager.ConfirmEmailAsync(user, token);
+                if(result.Succeeded)
+                {
+                    return StatusCode(StatusCodes.Status200OK, new Response { Status = "Success", Message = "Email Verified successfully" });
+                }
+            }
 
+            return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = " this user does not exist" });
         }
     }
 }

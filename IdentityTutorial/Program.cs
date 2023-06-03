@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using IdentityTutorial.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using User.Management.Service.Models;
+using User.Management.Service.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +18,11 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+// For Required Email
+builder.Services.Configure<IdentityOptions>(
+    opt => opt.SignIn.RequireConfirmedEmail = true
+    );
+
 // Adding Authentication
 builder.Services.AddAuthentication(options =>
 {
@@ -23,6 +30,11 @@ builder.Services.AddAuthentication(options =>
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
 });
+
+// Adding Email Configuration
+var emailConfig = builder.Configuration.GetSection("EmailConfigurations").Get<EmailConfiguration>();
+builder.Services.AddSingleton(emailConfig);
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 
 // Add services to the container.
