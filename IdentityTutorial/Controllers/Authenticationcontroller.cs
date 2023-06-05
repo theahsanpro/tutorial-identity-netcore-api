@@ -139,8 +139,8 @@ namespace IdentityTutorial.Controllers
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["JWT:ValidIssuer"],
-                audience: _configuration["JWT:ValidAudence"],
-                expires: DateTime.Now.AddHours(1),
+                audience: _configuration["JWT:ValidAudience"],
+                expires: DateTime.Now.AddHours(3),
                 claims: authClaims,
                 signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
                 );
