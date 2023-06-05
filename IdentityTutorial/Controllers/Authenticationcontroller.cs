@@ -1,10 +1,13 @@
 ﻿using IdentityTutorial.Models;
+using IdentityTutorial.Models.Authentication;
 using IdentityTutorial.Models.Authentication.Login;
 using IdentityTutorial.Models.Authentication.Signup;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -133,6 +136,28 @@ namespace IdentityTutorial.Controllers
             return Unauthorized();
         }
 
+        [HttpPost]
+        [AllowAnonymous]
+        [Route("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([Required] string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+
+            if (user != null)
+            {
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var forgetPasswordLink = Url.Action(nameof(ResetPassword), "Authentication", new { token, email = user.Email }, Request.Scheme);
+                var message = new Message(new string[] { user.Email! }, "Forget password Link", forgetPasswordLink!);
+                _emailService.SendEmail(message);
+
+                return StatusCode(StatusCodes.Status200OK,
+                    new Response { Status = "Success", Message = $"Password Change link sent to {user.Email} successfully" });
+            }
+            return StatusCode(StatusCodes.Status400BadRequest,
+                    new Response { Status = "Failed", Message = $"Something went wrong" });
+
+        }
+
         private JwtSecurityToken GetToken(List<Claim> authClaims)
         {
             var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
@@ -146,6 +171,46 @@ namespace IdentityTutorial.Controllers
                 );
 
             return token;
+        }
+
+        [HttpGet("reset-password")]
+        public async Task<IActionResult> ResetPassword(string token, string email)
+        {
+            var model = new ResetPassword { Token = token, Email = email };
+
+            return Ok(new
+            {
+                model
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [Route("reset-password")]
+        public async Task<IActionResult> ResetPassword(ResetPassword resetPassword)
+        {
+            var user = await _userManager.FindByEmailAsync(resetPassword.Email);
+
+            if (user != null)
+            {
+                var resetPassResult = await _userManager.ResetPasswordAsync(user, resetPassword.Token, resetPassword.Password);
+
+                if(!resetPassResult.Succeeded)
+                {
+                    foreach( var error in resetPassResult.Errors )
+                    {
+                        ModelState.AddModelError(error.Code, error.Description);
+                    }
+
+                    return Ok(ModelState);
+                }
+
+                return StatusCode(StatusCodes.Status200OK,
+                    new Response { Status = "Success", Message = $"Password has been changed" });
+            }
+            return StatusCode(StatusCodes.Status400BadRequest,
+                    new Response { Status = "Failed", Message = $"Something went wrong" });
+
         }
     }
 }
